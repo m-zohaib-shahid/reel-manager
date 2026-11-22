@@ -7,4 +7,5 @@ export interface DataAdapter {
   markPosted(input: MarkPostedInput): Promise<DailyPost>;
   undoPost(postDate: string, slot: SlotNumber, memberId: string): Promise<DailyPost>;
   subscribe(onChange: () => void): () => void;
+  signOut?(): Promise<void>;
 }

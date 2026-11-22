@@ -120,6 +120,7 @@ export default function App() {
     setCurrentMember(null);
     setModalTarget(null);
     setActionError(null);
+    void adapter.signOut?.();
     try {
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
     } catch {

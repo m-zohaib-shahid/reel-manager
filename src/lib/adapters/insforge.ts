@@ -1,4 +1,8 @@
-import { getInsforgeClient } from "../insforge";
+import {
+  applyInsforgeAuthSession,
+  clearInsforgeAuthSession,
+  getInsforgeClient,
+} from "../insforge";
 import type { DailyPost, MarkPostedInput, SlotNumber, TeamMember } from "../types";
 import type { DataAdapter } from "./types";
 
@@ -20,12 +24,22 @@ interface DailyPostRow {
   caption_ref: string | null;
 }
 
+interface PinLoginResponse {
+  ok: boolean;
+  accessToken?: string;
+  refreshToken?: string | null;
+  error?: string;
+}
+
 const REALTIME_CHANNEL = "reel-tracker:posts";
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const localListeners = new Set<() => void>();
 let realtimeActiveCount = 0;
 let realtimeHandler: (() => void) | null = null;
 let visibilityHandler: (() => void) | null = null;
 let focusHandler: (() => void) | null = null;
+let lastMissedSyncAt = 0;
+let missedSyncPromise: Promise<void> | null = null;
 
 function formatErrorMessage(err: { message?: string } | null | undefined, fallback: string): string {
   const raw = err?.message?.trim();
@@ -36,6 +50,17 @@ function formatErrorMessage(err: { message?: string } | null | undefined, fallba
     return `${fallback} (server returned an unexpected response)`;
   }
   return raw;
+}
+
+function isAuthError(err: { statusCode?: number; message?: string; code?: string } | null | undefined): boolean {
+  if (!err) {
+    return false;
+  }
+  if (err.statusCode === 401 || err.statusCode === 403) {
+    return true;
+  }
+  const msg = (err.message ?? "").toLowerCase();
+  return msg.includes("jwt") || msg.includes("unauthorized") || msg.includes("token");
 }
 
 function mapPostRow(row: DailyPostRow): DailyPost {
@@ -59,6 +84,32 @@ function notifyLocalListeners(): void {
       // Ignore subscriber errors
     }
   });
+}
+
+async function ensureMissedTasksSynced(): Promise<void> {
+  const nowMs = Date.now();
+  if (nowMs - lastMissedSyncAt < SYNC_INTERVAL_MS) {
+    return;
+  }
+  if (missedSyncPromise) {
+    return missedSyncPromise;
+  }
+  missedSyncPromise = (async () => {
+    try {
+      const insforge = getInsforgeClient();
+      const { error } = await insforge.database.rpc("sync_missed_tasks", {
+        p_days_back: 7,
+      });
+      if (!error) {
+        lastMissedSyncAt = Date.now();
+      }
+    } catch {
+      // Non-fatal: dashboard reads remain unaffected
+    } finally {
+      missedSyncPromise = null;
+    }
+  })();
+  return missedSyncPromise;
 }
 
 async function ensureRealtimeSubscribed(): Promise<void> {
@@ -85,14 +136,27 @@ async function ensureRealtimeSubscribed(): Promise<void> {
   }
 }
 
+async function runWithStaleTokenRecovery<T>(
+  operation: () => Promise<{ data: T | null; error: { statusCode?: number; message?: string; code?: string } | null }>
+): Promise<{ data: T | null; error: { statusCode?: number; message?: string; code?: string } | null }> {
+  const first = await operation();
+  if (first.error && isAuthError(first.error)) {
+    await clearInsforgeAuthSession(false);
+    return operation();
+  }
+  return first;
+}
+
 export const insforgeAdapter: DataAdapter = {
   async getMembers(): Promise<TeamMember[]> {
     const insforge = getInsforgeClient();
-    const { data, error } = await insforge.database
-      .from("team_members")
-      .select("id, name, avatar_color, sort_order")
-      .order("sort_order", { ascending: true })
-      .limit(20);
+    const { data, error } = await runWithStaleTokenRecovery(async () =>
+      insforge.database
+        .from("team_members")
+        .select("id, name, avatar_color, sort_order")
+        .order("sort_order", { ascending: true })
+        .limit(20)
+    );
 
     if (error) {
       throw new Error(formatErrorMessage(error, "Failed to load team members."));
@@ -108,28 +172,47 @@ export const insforgeAdapter: DataAdapter = {
 
   async verifyPin(memberId: string, pin: string): Promise<boolean> {
     const insforge = getInsforgeClient();
-    const { data, error } = await insforge.database.rpc("verify_member_pin", {
-      p_member_id: memberId,
-      p_pin: pin.trim(),
+    await clearInsforgeAuthSession(false);
+
+    const { data, error } = await insforge.functions.invoke<PinLoginResponse>("pin-login", {
+      body: {
+        memberId,
+        pin: pin.trim(),
+      },
     });
 
     if (error) {
       throw new Error(formatErrorMessage(error, "Failed to verify PIN."));
     }
 
-    return Boolean(data);
+    if (!data?.ok) {
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      return false;
+    }
+
+    if (data.accessToken) {
+      applyInsforgeAuthSession(data.accessToken, data.refreshToken ?? null);
+    }
+
+    return true;
   },
 
   async getPosts(fromDate: string, toDate: string): Promise<DailyPost[]> {
     const insforge = getInsforgeClient();
-    const { data, error } = await insforge.database
-      .from("daily_posts")
-      .select("id, post_date, slot, member_id, posted, posted_at, reel_url, caption_ref")
-      .gte("post_date", fromDate)
-      .lte("post_date", toDate)
-      .order("post_date", { ascending: true })
-      .order("slot", { ascending: true })
-      .limit(500);
+    void ensureMissedTasksSynced();
+
+    const { data, error } = await runWithStaleTokenRecovery(async () =>
+      insforge.database
+        .from("daily_posts")
+        .select("id, post_date, slot, member_id, posted, posted_at, reel_url, caption_ref")
+        .gte("post_date", fromDate)
+        .lte("post_date", toDate)
+        .order("post_date", { ascending: true })
+        .order("slot", { ascending: true })
+        .limit(500)
+    );
 
     if (error) {
       throw new Error(formatErrorMessage(error, "Failed to load posts."));
@@ -141,13 +224,15 @@ export const insforgeAdapter: DataAdapter = {
 
   async markPosted(input: MarkPostedInput): Promise<DailyPost> {
     const insforge = getInsforgeClient();
-    const { data, error } = await insforge.database.rpc("mark_reel_posted", {
-      p_post_date: input.postDate,
-      p_slot: input.slot,
-      p_member_id: input.memberId,
-      p_reel_url: input.reelUrl && input.reelUrl.trim() ? input.reelUrl.trim() : null,
-      p_caption_ref: input.captionRef && input.captionRef.trim() ? input.captionRef.trim() : null,
-    });
+    const { data, error } = await runWithStaleTokenRecovery(async () =>
+      insforge.database.rpc("mark_reel_posted", {
+        p_post_date: input.postDate,
+        p_slot: input.slot,
+        p_member_id: input.memberId,
+        p_reel_url: input.reelUrl && input.reelUrl.trim() ? input.reelUrl.trim() : null,
+        p_caption_ref: input.captionRef && input.captionRef.trim() ? input.captionRef.trim() : null,
+      })
+    );
 
     if (error) {
       throw new Error(formatErrorMessage(error, "Failed to save reel post."));
@@ -164,11 +249,13 @@ export const insforgeAdapter: DataAdapter = {
 
   async undoPost(postDate: string, slot: SlotNumber, memberId: string): Promise<DailyPost> {
     const insforge = getInsforgeClient();
-    const { data, error } = await insforge.database.rpc("undo_reel_post", {
-      p_post_date: postDate,
-      p_slot: slot,
-      p_member_id: memberId,
-    });
+    const { data, error } = await runWithStaleTokenRecovery(async () =>
+      insforge.database.rpc("undo_reel_post", {
+        p_post_date: postDate,
+        p_slot: slot,
+        p_member_id: memberId,
+      })
+    );
 
     if (error) {
       throw new Error(formatErrorMessage(error, "Failed to undo post."));
@@ -238,5 +325,9 @@ export const insforgeAdapter: DataAdapter = {
         }
       }
     };
+  },
+
+  async signOut(): Promise<void> {
+    await clearInsforgeAuthSession(true);
   },
 };
