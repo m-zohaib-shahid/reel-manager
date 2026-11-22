@@ -436,11 +436,18 @@ export default function App() {
               topContributor={topContributor}
             />
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <MonthProgress monthLabel={monthLabel} stats={monthlyProgress} />
+            <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                <MonthProgress
+                  monthLabel={monthLabel}
+                  stats={monthlyProgress}
+                  days={currentMonthRange.days}
+                  todayStr={todayStr}
+                  postMap={mergedRecentMap}
+                  now={now}
+                />
               </div>
-              <div>
+              <div className="lg:col-span-5">
                 <Leaderboard
                   entries={leaderboardEntries}
                   monthLabel={monthLabel}
@@ -454,7 +461,7 @@ export default function App() {
                 <div
                   role="tablist"
                   aria-label="Schedule timeframe"
-                  className="inline-flex rounded-xl border border-black/10 bg-white p-1 dark:border-white/10 dark:bg-[#111111]"
+                  className="inline-flex rounded-xl border border-black/[0.06] bg-neutral-200/60 p-1 dark:border-white/[0.08] dark:bg-white/[0.06]"
                 >
                   {(
                     [
@@ -471,9 +478,9 @@ export default function App() {
                         type="button"
                         aria-selected={active}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`min-h-[40px] whitespace-nowrap rounded-lg px-4 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071e3] ${
+                        className={`min-h-[36px] whitespace-nowrap rounded-lg px-4 text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071e3] ${
                           active
-                            ? "bg-[#0071e3] text-white"
+                            ? "bg-white text-neutral-900 shadow-xs dark:bg-[#1c1c1e] dark:text-white"
                             : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
                         }`}
                       >

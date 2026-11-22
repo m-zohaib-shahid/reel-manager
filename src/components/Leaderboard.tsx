@@ -11,23 +11,23 @@ export function Leaderboard({ entries, monthLabel, currentMemberId }: Leaderboar
   return (
     <section
       aria-label="Team leaderboard"
-      className="rounded-2xl border border-black/10 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#111111]"
+      className="flex h-full flex-col justify-between rounded-2xl border border-black/[0.08] bg-white p-5 shadow-xs dark:border-white/[0.08] dark:bg-[#111111]"
     >
       <div className="flex items-baseline justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-neutral-900 dark:text-white">
             Team Leaderboard
           </h2>
-          <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-            All 3 members · Monthly pace &amp; today
+          <p className="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">
+            Live monthly pace &amp; ranking
           </p>
         </div>
-        <span className="shrink-0 truncate text-xs text-neutral-500 dark:text-neutral-400">
+        <span className="shrink-0 whitespace-nowrap text-xs font-medium text-neutral-500 dark:text-neutral-400">
           {monthLabel}
         </span>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-2.5">
         {entries.map((entry) => {
           const isCurrent = entry.member.id === currentMemberId;
           const isLeader = entry.rank === 1 && entry.count > 0;
@@ -39,7 +39,7 @@ export function Leaderboard({ entries, monthLabel, currentMemberId }: Leaderboar
               className={`min-w-0 rounded-xl border p-3 transition-colors ${
                 isCurrent
                   ? "border-[#0071e3]/30 bg-[#0071e3]/[0.04] dark:border-[#0071e3]/40 dark:bg-[#0071e3]/[0.08]"
-                  : "border-black/5 bg-[#fafafa] dark:border-white/5 dark:bg-white/[0.02]"
+                  : "border-black/[0.06] bg-[#fafafa] dark:border-white/[0.06] dark:bg-white/[0.02]"
               }`}
             >
               <div className="flex items-center justify-between gap-2 text-xs">
@@ -48,7 +48,7 @@ export function Leaderboard({ entries, monthLabel, currentMemberId }: Leaderboar
                     className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[11px] font-semibold tabular-nums ${
                       isLeader
                         ? "bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-400"
-                        : "bg-neutral-200/70 text-neutral-600 dark:bg-white/10 dark:text-neutral-400"
+                        : "bg-neutral-200/80 text-neutral-600 dark:bg-white/10 dark:text-neutral-400"
                     }`}
                     aria-label={`Rank ${entry.rank}`}
                   >
@@ -110,9 +110,7 @@ export function Leaderboard({ entries, monthLabel, currentMemberId }: Leaderboar
                   </div>
                   <span className="font-mono tabular-nums">{entry.todayCompleted}/3 today</span>
                 </div>
-                <span className="font-mono tabular-nums">
-                  {entry.streak}d streak
-                </span>
+                <span className="font-mono tabular-nums">{entry.streak}d streak</span>
               </div>
             </div>
           );
