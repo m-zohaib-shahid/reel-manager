@@ -11,7 +11,11 @@ import type { DailyPost, SlotNumber, TeamMember } from "./types";
 export interface LeaderboardEntry {
   member: TeamMember;
   count: number;
+  expected: number;
   percentage: number;
+  todayCompleted: number;
+  streak: number;
+  rank: number;
 }
 
 export interface MonthlyProgressStats {
@@ -135,28 +139,49 @@ export function calculateDailyStreak(
 export function computeLeaderboard(
   members: TeamMember[],
   posts: DailyPost[],
-  monthStr: string
+  now: Date
 ): LeaderboardEntry[] {
-  const counts = new Map<string, number>();
-  for (const member of members) {
-    counts.set(member.id, 0);
-  }
+  const todayStr = getPktDateString(now);
 
-  let totalPosted = 0;
-  for (const post of posts) {
-    if (post.posted && post.postDate.startsWith(`${monthStr}-`) && post.postedBy) {
-      totalPosted += 1;
-      counts.set(post.postedBy, (counts.get(post.postedBy) ?? 0) + 1);
-    }
-  }
-
-  return [...members]
+  const sorted = [...members]
     .map((member) => {
-      const count = counts.get(member.id) ?? 0;
-      const percentage = totalPosted > 0 ? Math.round((count / totalPosted) * 100) : 0;
-      return { member, count, percentage };
+      const memberMap = buildMemberPostMap(posts, member.id);
+      const monthly = computeMonthlyProgress(memberMap, now);
+      const todayCompleted = countTodayCompleted(memberMap, todayStr);
+      const streak = calculateDailyStreak(memberMap, now, 60);
+
+      return {
+        member,
+        count: monthly.posted,
+        expected: monthly.expected,
+        percentage: monthly.percentage,
+        todayCompleted,
+        streak,
+        rank: 1,
+      };
     })
-    .sort((a, b) => b.count - a.count || a.member.name.localeCompare(b.member.name));
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        b.todayCompleted - a.todayCompleted ||
+        b.streak - a.streak ||
+        a.member.name.localeCompare(b.member.name)
+    );
+
+  return sorted.map((entry, idx) => {
+    if (idx === 0) {
+      return { ...entry, rank: 1 };
+    }
+    const prev = sorted[idx - 1];
+    const tied =
+      entry.count === prev.count &&
+      entry.todayCompleted === prev.todayCompleted &&
+      entry.streak === prev.streak;
+    return {
+      ...entry,
+      rank: tied ? prev.rank : idx + 1,
+    };
+  });
 }
 
 export function computeMonthlyProgress(

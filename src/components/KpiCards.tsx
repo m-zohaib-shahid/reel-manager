@@ -87,7 +87,7 @@ export function KpiCards({
               </p>
             </div>
             <p className="mt-1.5 font-mono text-xs text-neutral-500 tabular-nums dark:text-neutral-400">
-              {topContributor.count} {topContributor.count === 1 ? "reel" : "reels"} this month
+              {topContributor.count} {topContributor.count === 1 ? "reel" : "reels"} · {topContributor.percentage}% pace
             </p>
           </>
         ) : (

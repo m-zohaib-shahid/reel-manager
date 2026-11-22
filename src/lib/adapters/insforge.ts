@@ -38,6 +38,7 @@ let realtimeActiveCount = 0;
 let realtimeHandler: (() => void) | null = null;
 let visibilityHandler: (() => void) | null = null;
 let focusHandler: (() => void) | null = null;
+let pollTimer: number | null = null;
 let lastMissedSyncAt = 0;
 let missedSyncPromise: Promise<void> | null = null;
 
@@ -211,7 +212,7 @@ export const insforgeAdapter: DataAdapter = {
         .lte("post_date", toDate)
         .order("post_date", { ascending: true })
         .order("slot", { ascending: true })
-        .limit(500)
+        .limit(1000)
     );
 
     if (error) {
@@ -297,6 +298,11 @@ export const insforgeAdapter: DataAdapter = {
         };
         window.addEventListener("focus", focusHandler);
         document.addEventListener("visibilitychange", visibilityHandler);
+        pollTimer = window.setInterval(() => {
+          if (document.visibilityState === "visible") {
+            notifyLocalListeners();
+          }
+        }, 30000);
       }
     }
 
@@ -305,6 +311,10 @@ export const insforgeAdapter: DataAdapter = {
       realtimeActiveCount = Math.max(0, realtimeActiveCount - 1);
 
       if (realtimeActiveCount === 0 && typeof window !== "undefined") {
+        if (pollTimer !== null) {
+          window.clearInterval(pollTimer);
+          pollTimer = null;
+        }
         if (focusHandler) {
           window.removeEventListener("focus", focusHandler);
           focusHandler = null;

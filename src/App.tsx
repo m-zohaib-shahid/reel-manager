@@ -207,8 +207,8 @@ export default function App() {
   );
 
   const leaderboardEntries = useMemo(
-    () => (currentMonth ? computeLeaderboard(members, recentPosts, currentMonth) : []),
-    [members, recentPosts, currentMonth]
+    () => (now ? computeLeaderboard(members, recentPosts, now) : []),
+    [members, recentPosts, now]
   );
 
   const topContributor = useMemo(
@@ -441,7 +441,11 @@ export default function App() {
                 <MonthProgress monthLabel={monthLabel} stats={monthlyProgress} />
               </div>
               <div>
-                <Leaderboard entries={leaderboardEntries} monthLabel={monthLabel} />
+                <Leaderboard
+                  entries={leaderboardEntries}
+                  monthLabel={monthLabel}
+                  currentMemberId={currentMember.id}
+                />
               </div>
             </div>
 
