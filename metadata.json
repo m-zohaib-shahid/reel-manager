@@ -1,0 +1,6 @@
+{
+  "name": "Reel Tracker",
+  "description": "Minimalist daily 3-slot Instagram Reel tracker and analytics dashboard for a GTA 6 content team in PKT.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
