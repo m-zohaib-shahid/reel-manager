@@ -7,15 +7,15 @@ export const SLOT_NUMBERS: readonly SlotNumber[] = [1, 2, 3];
 export const SLOT_META: Record<SlotNumber, { label: string; timeRange: string }> = {
   1: {
     label: "Afternoon Student Break",
-    timeRange: "14:30 – 15:30 PKT",
+    timeRange: "2:30 PM – 3:30 PM PKT",
   },
   2: {
     label: "Prime Evening (Local + UK)",
-    timeRange: "19:30 – 20:30 PKT",
+    timeRange: "7:30 PM – 8:00 PM PKT",
   },
   3: {
     label: "Late Night Viral Slot (US Tier-1)",
-    timeRange: "23:30 – 00:30 PKT",
+    timeRange: "11:00 PM – 11:59 PM PKT",
   },
 };
 
@@ -133,13 +133,12 @@ export function slotWindow(dateStr: string, slot: SlotNumber): { start: Date; en
   if (slot === 2) {
     return {
       start: new Date(`${dateStr}T19:30:00+05:00`),
-      end: new Date(`${dateStr}T20:30:00+05:00`),
+      end: new Date(`${dateStr}T20:00:00+05:00`),
     };
   }
-  const nextDay = addDays(dateStr, 1);
   return {
-    start: new Date(`${dateStr}T23:30:00+05:00`),
-    end: new Date(`${nextDay}T00:30:00+05:00`),
+    start: new Date(`${dateStr}T23:00:00+05:00`),
+    end: new Date(`${dateStr}T23:59:59+05:00`),
   };
 }
 
